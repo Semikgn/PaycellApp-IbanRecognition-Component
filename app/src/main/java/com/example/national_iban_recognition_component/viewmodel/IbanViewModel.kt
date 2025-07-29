@@ -30,17 +30,14 @@ class IbanViewModel(application: Application) : AndroidViewModel(application) {
         "FR" to 25,
         "DE" to 20
     )
-    /*Her ülke için farklı regex yapısı
+    //Her ülke için farklı regex yapısı
     val ibanRegexMap = mapOf(
         "TR" to Regex("TR\\d{2}[A-Z0-9]{4}\\d{16}[A-Z0-9]{2}"),
         "GB" to Regex("GB\\d{2}[A-Z]{4}\\d{14}"),
         "FR" to Regex("FR\\d{2}[A-Z0-9]{23}"),
         "DE" to Regex("DE\\d{2}[A-Z0-9]{18}")
-    )*/
-    /*private  val _ibanErrorMessages = ibanConfigs.map { ibanConfig ->
-        ibanConfig.first to MutableStateFlow<String?>(null) }.toMap()
-    val ibanErrorMessages: Map<String, StateFlow<String?>> = _ibanErrorMessages
-*/
+    )
+
     //Seçilen ülke kodunu tut
     private val _selectedCountryCode = MutableStateFlow(ibanConfigs.first().first)
     val selectedCountryCode: StateFlow<String> = _selectedCountryCode.asStateFlow()
@@ -78,7 +75,7 @@ class IbanViewModel(application: Application) : AndroidViewModel(application) {
             _currentIbanText.value = newText
         }
     }
-    /*private fun validateIban(countryCode: String, ibanText: String) {
+    private fun validateIban(countryCode: String, ibanText: String) {
         val ibanConfig = ibanConfigs.find { it.first == countryCode }
         val regex = ibanRegexMap[countryCode]
         val maxLen = ibanConfig?.second ?: 0
@@ -94,7 +91,7 @@ class IbanViewModel(application: Application) : AndroidViewModel(application) {
             errorMessage = null
         }
 
-    }*/
+    }
 
     fun onFirstNameChanged(newText: String){
         _firstName.value = newText
