@@ -6,9 +6,11 @@ import android.util.Log
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.content.MediaType.Companion.Image
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -17,23 +19,26 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
-import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -62,7 +67,11 @@ import com.example.national_iban_recognition_component.viewmodel.IbanViewModel
 import androidx.core.content.FileProvider
 import kotlinx.coroutines.flow.collectLatest
 import java.io.File
+import androidx.compose.ui.graphics.painter.Painter
+import com.example.national_iban_recognition_component.R
+import androidx.compose.ui.res.painterResource
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun IbanRecognitionScreen(
     navController: NavController,
@@ -73,7 +82,7 @@ fun IbanRecognitionScreen(
     //ViewModel stateleri
     val selectedCountryCode by ibanViewModel.selectedCountryCode.collectAsState()
     val currentIbanText by ibanViewModel.currentIbanText.collectAsState()
-    val ibanConfigs = ibanViewModel.ibanConfigs
+    val ibanConfigs = ibanViewModel.ibanConfigs // ibabConfigs'in buradan gelmesi doğru
     val photoUri by ibanViewModel.photoUri.collectAsState()
     val currentFirstName by ibanViewModel.firsName.collectAsState()
     val currentLastName by ibanViewModel.lastName.collectAsState()
@@ -120,14 +129,11 @@ fun IbanRecognitionScreen(
             navController.navigate(route)
         }
     }
-    //Dropdown menü için state
-    var expanded by remember { mutableStateOf(false) }
-    var textFieldSize by remember { mutableStateOf(Size.Zero) }
 
-    val icon = if (expanded)
-        Icons.Filled.KeyboardArrowUp
-    else
-        Icons.Filled.KeyboardArrowDown
+    // Dropdown menü için state (mevcut değişkenleri koruyorum)
+    var expanded by remember { mutableStateOf(false) } // Bu değişkeni kullanacağız
+    // var textFieldSize by remember { mutableStateOf(Size.Zero) } // Bu değişkene artık ihtiyacımız yok
+    // val icon = if (expanded) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown // Bu ikona da doğrudan ihtiyacımız yok
 
     Box(modifier = Modifier.fillMaxSize()) {
         Column(
@@ -137,81 +143,106 @@ fun IbanRecognitionScreen(
                 .align(Alignment.Center),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Box {
-                TextField(
-                    value = selectedCountryCode, //Viewdan çektiğim seçili TR-GB-FR-DE
-                    onValueChange = {},
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 15.dp) // IBAN alanıyla aynı padding
-                        .background(Color.White, RoundedCornerShape(8.dp))
-                        .border(2.dp, Color.Black, RoundedCornerShape(8.dp))
-                        .onGloballyPositioned { coordinates ->
-                            textFieldSize = coordinates.size.toSize()
-                        }
-                        .clickable { expanded = !expanded },
-                    label = {Text("Ülke Seçiniz")},
-                    readOnly = true,
-                    trailingIcon = {
-                        Icon(icon, "contentDescription",
-                            Modifier.clickable { expanded = !expanded })
-                    },
-                    colors = TextFieldDefaults.colors(
-                        focusedIndicatorColor = Color.Transparent,
-                        unfocusedIndicatorColor = Color.Transparent,
-                        disabledIndicatorColor = Color.Transparent,
-                        focusedContainerColor = Color.White,
-                        unfocusedContainerColor = Color.White,
-                        disabledContainerColor = Color.White
-                    )
-                )
-                DropdownMenu(
-                    expanded = expanded,
-                    onDismissRequest = { expanded = false },
-                    modifier = Modifier
-                        .width(with(LocalDensity.current) { textFieldSize.width.toDp() }) //textfield genişliğini ayarla
-                ) {
-                    ibanConfigs.forEach { (code, _) ->
-                        DropdownMenuItem(
-                            text = { Text(code) },
-                            onClick = {
-                                ibanViewModel.onCountrySelected(code)
-                                expanded = false
-                            }
-                        )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-            //Tek IBAN alanı
             val currentConfig = ibanConfigs.firstOrNull { it.first == selectedCountryCode }
-            val currentAccountMaxLength = currentConfig?.second ?: 0 //Seçili ülkeye göre max uzunluk
+            val currentAccountMaxLength = currentConfig?.second ?: 0
             val currentFullMaxLen = selectedCountryCode.length + currentAccountMaxLength
 
-            IbanInputField(
-                countryCode      = selectedCountryCode,
-                accountMaxLength = currentAccountMaxLength,
-                value             = currentIbanText, // ViewModel'dan gelen güncel IBAN
-                onValueChange     = { newText ->
-                    // Değişikliği ViewModel'a bildir
+            Text(
+                text = "IBAN Kaydet",
+                style = MaterialTheme.typography.headlineMedium,
+                modifier = Modifier.padding(bottom = 24.dp)
+            )
+            OutlinedTextField(
+                placeholder = {
+                    val remaining = (currentFullMaxLen - currentIbanText.length).coerceAtLeast(0)
+                    Text("_".repeat(remaining))
+                },
+                value = currentIbanText, // ViewModel'dan gelen güncel IBAN
+                onValueChange = { newText ->
                     if (newText.length <= currentFullMaxLen) {
                         ibanViewModel.onIbanTextChanged(newText)
                     }
                 },
-                onScanClick     = {
-                    // Tarama butonuna tıklandığında ViewModel'a bildir
-                    ibanViewModel.onScanClicked()
-                    permissionLauncher.launch(Manifest.permission.CAMERA)
-                }
+                label = { Text("IBAN") },
+                //TODO: Burada isError yorumda kaldı buraya bir uyarı mesajı ekleyeceğim
+                // isError = errorMessageForSelectedCountry.isNotBlank(),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                singleLine = true,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 15.dp),
+                leadingIcon = {
+                    Row(
+                        modifier = Modifier
+                            .clickable { expanded = !expanded } // Tıkla Dropdown aç
+                            .padding(start = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // Ülke koduna göre bayrak getir
+                        Image(
+                            painter = getFlagResId(selectedCountryCode),
+                            contentDescription = "Flag for $selectedCountryCode",
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+
+                        Text(text = selectedCountryCode, fontWeight = FontWeight.Bold)
+                        Icon(
+                            imageVector = Icons.Filled.ArrowDropDown,
+                            contentDescription = "Select Country"
+                        )
+                        // DropdownMenu'yu doğrudan burada tanımlıyoruz
+                        DropdownMenu(
+                            expanded = expanded,
+                            onDismissRequest = { expanded = false }
+                        ) {
+                            ibanConfigs.forEach { (code, _) ->
+                                DropdownMenuItem(
+                                    text = {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Image(
+                                                painter = getFlagResId(code),
+                                                contentDescription = "Flag for $code",
+                                                modifier = Modifier.size(24.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Text(text = code)
+                                        }
+                                    },
+                                    onClick = {
+                                        ibanViewModel.onCountrySelected(code)
+                                        expanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+                },
+                trailingIcon = { // Sağdaki kamera ikonu
+                    IconButton(onClick = {
+                        ibanViewModel.onScanClicked() // ViewModel'deki onScanClicked'ı çağır
+                        permissionLauncher.launch(Manifest.permission.CAMERA)
+                    }) {
+                        Icon(Icons.Default.CameraAlt, contentDescription = "IBAN Tara")
+                    }
+                },
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                    unfocusedBorderColor = Color.Black,
+                    cursorColor = MaterialTheme.colorScheme.primary
+                )
             )
+
             Spacer(modifier = Modifier.height(16.dp))
+            // Diğer OutlinedTextField'larınız ve Button aynı kalacak
             OutlinedTextField(
                 value = currentFirstName,
                 onValueChange = { ibanViewModel.onFirstNameChanged(it) },
                 label = { Text("Adınız") },
                 keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 15.dp)
             )
             Spacer(modifier = Modifier.height(16.dp))
             OutlinedTextField(
@@ -219,13 +250,14 @@ fun IbanRecognitionScreen(
                 onValueChange = { ibanViewModel.onLastNameChanged(it) },
                 label = { Text("Soyadınız") },
                 keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Words),
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 15.dp)
             )
             //
             Spacer(modifier = Modifier.height(24.dp))
             Button(
                 onClick = {
-                    // "Save" butonuna tıklandığında ViewModel'a bildir
                     ibanViewModel.onContinueClicked()
                 },
                 modifier = Modifier.fillMaxWidth(0.6f),
@@ -242,54 +274,14 @@ fun IbanRecognitionScreen(
 }
 
 @Composable
-fun IbanInputField(
-    countryCode: String,
-    accountMaxLength: Int,
-    value: String,
-    onValueChange: (String) -> Unit,
-    onScanClick: () -> Unit,
-) {
-    val maxLen = countryCode.length + accountMaxLength
-
-    TextField(
-        value = value,
-        onValueChange = { onValueChange(it) },
-        singleLine = true,
-        leadingIcon = {
-            Text(
-                countryCode,
-                fontWeight = FontWeight.Bold,
-                fontSize = 18.sp,
-                modifier = Modifier.padding(start = 2.dp)
-            )
-        },
-        placeholder = {
-            val remaining = (maxLen - value.length).coerceAtLeast(0)
-            Text("_".repeat(remaining))
-        },
-        trailingIcon = {
-            IconButton(
-                onClick = {
-                    Log.d("IbanRecognitionScreen", "Kamera açma isteği gönderildi.")
-                    onScanClick()
-                }
-            ) {
-                Icon(
-                    imageVector = Icons.Default.CameraAlt,
-                    contentDescription = "IBAN Tara"
-                )
-            }
-        },
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(15.dp)
-            .background(Color.White, RoundedCornerShape(8.dp))
-            .border(2.dp, Color.Black, RoundedCornerShape(8.dp)),
-        colors = TextFieldDefaults.colors(
-            focusedIndicatorColor = Color.Transparent,
-            unfocusedIndicatorColor = Color.Transparent,
-            disabledIndicatorColor = Color.Transparent
-        )
+fun getFlagResId(countryCode: String): Painter {
+    return painterResource(
+        when (countryCode) {
+            "TR" -> R.drawable.icons_flag_tr
+            "GB" -> R.drawable.icons_flag_uk
+            "FR" -> R.drawable.icons_flag_fr
+            "DE" -> R.drawable.icons_flag_de
+            else -> R.drawable.icons_flag_tr
+        }
     )
 }

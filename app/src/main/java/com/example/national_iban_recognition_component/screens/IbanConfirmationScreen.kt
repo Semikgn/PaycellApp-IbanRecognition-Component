@@ -37,7 +37,7 @@ fun IbanConfirmationScreen(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
-            text = "IBAN ve Kullanıcı Bilgileri",
+            text = "Kaydedilen IBAN Bilgileri",
             style = MaterialTheme.typography.headlineMedium,
             modifier = Modifier.padding(bottom = 24.dp)
         )
