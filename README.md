@@ -1,0 +1,1 @@
+Paycell app için kodlanmış bir iban recognition component. Bu component kullanıcının yeni bir ibanı kamera ile okutup veya manuel şekilde girip kaydedebilmesine olanak sağlıyor. Şuanda 4 farklı ülke ibanını tanıyor ve işlem yapabiliyor.
