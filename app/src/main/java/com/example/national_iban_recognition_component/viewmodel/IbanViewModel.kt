@@ -14,6 +14,7 @@ import com.example.national_iban_recognition_component.model.SelectedIbanInfo
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -21,6 +22,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class IbanViewModel(application: Application) : AndroidViewModel(application) {
     val ibanConfigs = listOf(
@@ -145,7 +147,9 @@ class IbanViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             if (success && _photoUri.value != null) {
                 try {
-                    val bitmap = MediaStore.Images.Media.getBitmap(context.contentResolver, _photoUri.value)
+                    val bitmap = withContext(Dispatchers.IO) { // BURAYI EKLEYİN!
+                        MediaStore.Images.Media.getBitmap(context.contentResolver, _photoUri.value)
+                    }
                     if (bitmap == null){
                         _toastMessage.emit("Resim alınamadı, lütfen tekrar deneyin.")
                         return@launch
