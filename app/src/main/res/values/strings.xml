@@ -1,3 +1,13 @@
 <resources>
-    <string name="app_name">National-Iban-Recognition-Component</string>
+    <string name="app_name">National Iban Recognition Component</string>
+    <string name="iban_save_title">IBAN Kaydet</string>
+    <string name="iban_confirm_title">IBAN Bilgilerini Onayla</string>
+    <string name="continue_button">Devam Et</string>
+    <string name="confirm_and_save_button">Onayla ve Kaydet</string>
+    <string name="iban_recognition_screen_info">Lutfen bilgileri kontrol edin:</string>
+    <string name="country_code_label">Ulke Kodu:</string>
+    <string name="iban_label">IBAN:</string>
+    <string name="cancel_button">Vazgec</string>
+    <string name="ok_button">Tamam</string>
+    <string name="detected_ibans_title">Tespit Edilen IBAN\'lar</string>
 </resources>

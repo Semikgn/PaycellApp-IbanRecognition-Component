@@ -37,13 +37,10 @@ class MainActivity : ComponentActivity() {
 
                         // IBAN Onay Ekranı rotası
                         composable(
-                            "confirmation_screen/{countryCode}/{iban}/{ownerFullName}/{shortName}/{category}",
+                            "confirmation_screen/{countryCode}/{iban}",
                             arguments = listOf(
                                 navArgument("countryCode") { type = NavType.StringType },
                                 navArgument("iban") { type = NavType.StringType },
-                                navArgument("ownerFullName") { type = NavType.StringType }, // Yeni argüman
-                                navArgument("shortName") { type = NavType.StringType },     // Yeni argüman
-                                navArgument("category") { type = NavType.StringType }      // Yeni argüman (Enum adı olarak)
                             )
                         ) { backStackEntry ->
                             IbanConfirmationScreen(navController = navController)

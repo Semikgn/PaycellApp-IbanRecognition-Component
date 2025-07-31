@@ -1,4 +1,4 @@
-// IbanViewModel.kt
+// viewmodel/IbanViewModel.kt
 package com.example.national_iban_recognition_component.viewmodel
 
 import android.app.Application
@@ -9,7 +9,7 @@ import android.provider.MediaStore
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.national_iban_recognition_component.model.IbanCategory // YENİ IMPORT
+import com.example.national_iban_recognition_component.model.IbanRecognitionUiState
 import com.example.national_iban_recognition_component.model.SelectedIbanInfo
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.TextRecognition
@@ -24,6 +24,11 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+data class IbanInputState(
+    val text: String = "",
+    val error: String? = null
+)
+
 class IbanViewModel(application: Application) : AndroidViewModel(application) {
     val ibanConfigs = listOf(
         "TR" to 24,
@@ -33,34 +38,18 @@ class IbanViewModel(application: Application) : AndroidViewModel(application) {
     )
 
     val ibanRegexMap = mapOf(
-        // Başında ve sonunda ^ ve $ olmamasına dikkat edin, zira find/findAll kullanıyoruz.
         "TR" to Regex("TR\\d{2}[A-Z0-9]{4}\\d{16}[A-Z0-9]{2}"),
         "GB" to Regex("GB\\d{2}[A-Z]{4}\\d{14}"),
         "FR" to Regex("FR\\d{2}[A-Z0-9]{23}"),
         "DE" to Regex("DE\\d{2}[A-Z0-9]{18}")
     )
-
-    private val _selectedCountryCode = MutableStateFlow(ibanConfigs.first().first)
-    val selectedCountryCode: StateFlow<String> = _selectedCountryCode.asStateFlow()
-
-    private val _currentIbanText = MutableStateFlow("")
-    val currentIbanText: StateFlow<String> = _currentIbanText.asStateFlow()
-
-    // OLMADAN ÖNCE:
-    // private val _firstName = MutableStateFlow("")
-    // val firsName: StateFlow<String> = _firstName.asStateFlow()
-    // private val _lastName = MutableStateFlow("")
-    // val lastName: StateFlow<String> = _lastName.asStateFlow()
-
-    // YENİ EKLENEN STATE'LER (Ad, Soyad yerine Tek İsim, Kısa İsim, Kategori)
-    private val _ownerFullName = MutableStateFlow("")
-    val ownerFullName: StateFlow<String> = _ownerFullName.asStateFlow()
-
-    private val _shortName = MutableStateFlow("")
-    val shortName: StateFlow<String> = _shortName.asStateFlow()
-
-    private val _selectedCategory = MutableStateFlow(IbanCategory.NONE) // Varsayılan olarak "Kategori Seç"
-    val selectedCategory: StateFlow<IbanCategory> = _selectedCategory.asStateFlow()
+//UI State class
+    private val _uiState = MutableStateFlow(
+        IbanRecognitionUiState(
+            ibanInputStates = ibanConfigs.associate { (code, _) -> code to IbanInputState() }
+        )
+    )
+    val uiState: StateFlow<IbanRecognitionUiState> = _uiState.asStateFlow()
 
     private val _navigateToConfirmationEvent = MutableSharedFlow<SelectedIbanInfo>()
     val navigateToConfirmationEvent: SharedFlow<SelectedIbanInfo> = _navigateToConfirmationEvent.asSharedFlow()
@@ -70,49 +59,32 @@ class IbanViewModel(application: Application) : AndroidViewModel(application) {
 
     private val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
 
-    private val _detectedIbans = MutableStateFlow<List<String>>(emptyList())
-    val detectedIbans: StateFlow<List<String>> = _detectedIbans.asStateFlow()
-
-    private val _showIbanBottomSheet = MutableStateFlow(false)
-    val showIbanBottomSheet: StateFlow<Boolean> = _showIbanBottomSheet.asStateFlow()
-
-    private val _toastMessage = MutableSharedFlow<String>()
-    val toastMessage: SharedFlow<String> = _toastMessage.asSharedFlow()
-
-    private val _ibanError = MutableStateFlow<String?>(null)
-    val ibanError: StateFlow<String?> = _ibanError.asStateFlow()
-
-
-    fun onCountrySelected(code: String) {
-        _selectedCountryCode.value = code
-        _currentIbanText.value = ""
-        _ibanError.value = null
+    fun onBottomSheetIbanSelected(iban: String) {
+        _uiState.value = _uiState.value.copy(selectedIbanInBottomSheet = iban)
     }
 
-    fun onIbanTextChanged(newText: String) {
-        val currentConfig = ibanConfigs.firstOrNull { it.first == _selectedCountryCode.value }
-        val currentAccountMaxLength = currentConfig?.second ?: 0
-        val currentFullMaxLen = _selectedCountryCode.value.length + currentAccountMaxLength
+    // BottomSheet kapandığında seçimi sıfırlama fonksiyonu
+    fun onBottomSheetDismissed() {
+        _uiState.value = _uiState.value.copy(showIbanBottomSheet = false, selectedIbanInBottomSheet = null)
+    }
 
-        if (newText.length <= currentFullMaxLen) {
-            _currentIbanText.value = newText
+    fun onIbanTextChanged(countryCode: String, newText: String) {
+        val currentConfig = ibanConfigs.firstOrNull { it.first == countryCode }
+        val currentFullMaxLen = (currentConfig?.second ?: 0) + countryCode.length
+
+        // Metnin uzunluğunu kontrol et
+        val processedText = if (newText.length <= currentFullMaxLen) {
+            newText
         } else {
-            _ibanError.value = "IBAN uzunluğu ${currentFullMaxLen} karakteri aşıyor."
+            // Aşılırsa sadece sınıra kadar olan kısmı al
+            newText.take(currentFullMaxLen)
         }
-        _ibanError.value = validateIbanFormat(_selectedCountryCode.value, newText)
-    }
+        val error = validateIbanFormat(countryCode, processedText)
 
-    // YENİ EKLENEN FONKSİYONLAR
-    fun onOwnerFullNameChanged(newText: String) {
-        _ownerFullName.value = newText
-    }
-
-    fun onShortNameChanged(newText: String) {
-        _shortName.value = newText
-    }
-
-    fun onCategorySelected(category: IbanCategory) {
-        _selectedCategory.value = category
+        val updatedStates = _uiState.value.ibanInputStates.toMutableMap().apply {
+            this[countryCode] = IbanInputState(text = processedText, error = error)
+        }
+        _uiState.value = _uiState.value.copy(ibanInputStates = updatedStates)
     }
 
     private fun validateIbanFormat(countryCode: String, ibanText: String): String? {
@@ -121,8 +93,13 @@ class IbanViewModel(application: Application) : AndroidViewModel(application) {
         val maxLen = ibanConfig?.second ?: 0
         val fullExpectedLen = countryCode.length + maxLen
 
+        // Eğer IBAN metni hala ülke kodu ile başlamıyorsa, regex kontrolünü yapma
+        if (!ibanText.startsWith(countryCode, ignoreCase = true) && ibanText.length >= countryCode.length) {
+            return "IBAN '$countryCode' ile başlamalıdır."
+        }
+
         return when {
-            ibanText.isBlank() -> null
+            ibanText.isBlank() -> null // Boşsa hata gösterme
             ibanText.length < fullExpectedLen -> "IBAN uzunluğu ${fullExpectedLen} karakter olmalıdır."
             ibanText.length > fullExpectedLen -> "IBAN uzunluğu ${fullExpectedLen} karakteri aşıyor."
             regex != null && !regex.matches(ibanText) -> "Geçersiz IBAN formatı."
@@ -130,11 +107,11 @@ class IbanViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun onScanClicked() {
+    fun onScanClicked(countryCodeForScan: String) { // Hangi IBAN alanı için tarama yapıldığını belirt
         viewModelScope.launch {
-            _detectedIbans.value = emptyList()
-            _showIbanBottomSheet.value = false
-            _toastMessage.emit("Kamera izni isteniyor...")
+            _uiState.value = _uiState.value.copy(detectedIbans = emptyList())
+            _uiState.value = _uiState.value.copy(showIbanBottomSheet = false)
+            _uiState.value = _uiState.value.copy(toastMessage = "Kamera izni isteniyor...")
         }
     }
 
@@ -147,19 +124,19 @@ class IbanViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             if (success && _photoUri.value != null) {
                 try {
-                    val bitmap = withContext(Dispatchers.IO) { // BURAYI EKLEYİN!
+                    val bitmap = withContext(Dispatchers.IO) {
                         MediaStore.Images.Media.getBitmap(context.contentResolver, _photoUri.value)
                     }
                     if (bitmap == null){
-                        _toastMessage.emit("Resim alınamadı, lütfen tekrar deneyin.")
+                        _uiState.value = _uiState.value.copy(toastMessage = "Resim alınamadı, lütfen tekrar deneyin.")
                         return@launch
                     }
                     processImageForIban(bitmap, context)
                 } catch (e: Exception) {
-                    _toastMessage.emit("Resim işlenirken hata oluştu: ${e.localizedMessage}")
+                    _uiState.value = _uiState.value.copy(toastMessage = "Resim işlenirken hata oluştu: ${e.localizedMessage}")
                 }
             } else {
-                _toastMessage.emit("Resim çekme işlemi iptal edildi veya hata oluştu.")
+                _uiState.value = _uiState.value.copy(toastMessage = "Resim çekme işlemi iptal edildi veya hata oluştu.")
             }
         }
     }
@@ -179,7 +156,7 @@ class IbanViewModel(application: Application) : AndroidViewModel(application) {
                         val baseRegexPattern = ibanRegexMap[countryCodePrefix]?.pattern
 
                         if (baseRegexPattern != null) {
-                            val flexibleRegex = Regex(baseRegexPattern) // ^ ve $ olmadan
+                            val flexibleRegex = Regex(baseRegexPattern)
 
                             flexibleRegex.findAll(cleanedBlockText).forEach { matchResult ->
                                 val potentialIban = matchResult.value
@@ -194,22 +171,19 @@ class IbanViewModel(application: Application) : AndroidViewModel(application) {
                 }
 
                 val foundIbans = foundIbansSet.toList()
-                _detectedIbans.value = foundIbans
                 Log.d("IbanViewModel", "Sonuç: Bulunan benzersiz IBAN'lar: $foundIbans")
 
                 viewModelScope.launch {
                     if (foundIbans.isNotEmpty()) {
-                        _showIbanBottomSheet.value = true
+                        _uiState.value = _uiState.value.copy(detectedIbans = foundIbans, showIbanBottomSheet = true)
                     } else {
-                        _toastMessage.emit("Resimde geçerli IBAN bulunamadı.")
-                        _showIbanBottomSheet.value = false
+                        _uiState.value = _uiState.value.copy(toastMessage ="Resimde geçerli IBAN bulunamadı.", showIbanBottomSheet = false)
                     }
                 }
             }
             .addOnFailureListener { e ->
                 viewModelScope.launch {
-                    _toastMessage.emit("IBAN tanıma başarısız oldu: ${e.localizedMessage}")
-                    _showIbanBottomSheet.value = false
+                    _uiState.value = _uiState.value.copy(toastMessage = "IBAN tanıma başarısız oldu: ${e.localizedMessage}", showIbanBottomSheet = false )
                 }
             }
             .addOnCompleteListener {
@@ -222,73 +196,36 @@ class IbanViewModel(application: Application) : AndroidViewModel(application) {
         val isValidCountry = ibanConfigs.any { it.first == countryCodeFromIban }
 
         if (isValidCountry) {
-            _selectedCountryCode.value = countryCodeFromIban
-            _currentIbanText.value = selectedIban
-            _ibanError.value = validateIbanFormat(countryCodeFromIban, selectedIban)
-            _showIbanBottomSheet.value = false
+            val updatedStates = _uiState.value.ibanInputStates.toMutableMap().apply {
+                this[countryCodeFromIban] = IbanInputState(text = selectedIban, error = validateIbanFormat(countryCodeFromIban, selectedIban))
+            }
+            _uiState.value = _uiState.value.copy(ibanInputStates = updatedStates, showIbanBottomSheet = false)
             Log.d("IbanViewModel", "IBAN ve ülke kodu güncellendi: $selectedIban, $countryCodeFromIban")
         } else {
-            viewModelScope.launch {
-                _toastMessage.emit("Seçilen IBAN (${countryCodeFromIban}), desteklenen ülkelerden birine ait değil!")
-                _showIbanBottomSheet.value = false
-            }
-        }
-    }
-
-    fun onBottomSheetDismissed() {
-        _showIbanBottomSheet.value = false
-        _detectedIbans.value = emptyList()
-        viewModelScope.launch {
-            _toastMessage.emit("IBAN seçimi iptal edildi.")
-        }
-    }
-
-    fun notifyInvalidCountryCodeSelected() {
-        viewModelScope.launch {
-            _toastMessage.emit("Seçilen IBAN, desteklenen ülkelerden birine ait değil!")
-        }
-    }
-
-    fun notifyNoIbanSelected() {
-        viewModelScope.launch {
-            _toastMessage.emit("Lütfen bir IBAN seçin.")
+            _uiState.value = _uiState.value.copy(toastMessage = "Seçilen IBAN (${countryCodeFromIban}), desteklenen ülkelerden birine ait değil!", showIbanBottomSheet = false)
         }
     }
 
     fun onContinueClicked() {
-        val country = _selectedCountryCode.value
-        val iban = _currentIbanText.value
-        // OLMADAN ÖNCE:
-        // val currentFirstName = _firstName.value
-        // val currentLastName = _lastName.value
+        val validIbanEntry = _uiState.value.ibanInputStates.entries.firstOrNull { (_, state) ->
+            state.text.isNotBlank() && state.error == null
+        }
 
-        // YENİ ALANLAR
-        val currentOwnerFullName = _ownerFullName.value
-        val currentShortName = _shortName.value
-        val currentCategory = _selectedCategory.value
+        if (validIbanEntry != null) {
+            val country = validIbanEntry.key
+            val ibanText = validIbanEntry.value.text
 
-        val ibanError = validateIbanFormat(country, iban)
-
-        // Devam Et butonu için doğrulama mantığını güncelle
-        if (iban.isNotBlank() &&
-            ibanError == null && // IBAN'da hata yoksa
-            currentOwnerFullName.isNotBlank() && // Hesap Sahibi Adı boş olmamalı
-            currentShortName.isNotBlank() // Kısa İsim boş olmamalı
-        // Kategori opsiyonel olduğu için burada kontrol etmiyoruz
-        ) {
             val selectedIbanInfo = SelectedIbanInfo(
                 countryCode = country,
-                iban = iban,
-                ownerFullName = currentOwnerFullName, // Yeni alan
-                shortName = currentShortName,         // Yeni alan
-                category = currentCategory            // Yeni alan
+                iban = ibanText
             )
+
             viewModelScope.launch {
                 _navigateToConfirmationEvent.emit(selectedIbanInfo)
             }
         } else {
             viewModelScope.launch {
-                _toastMessage.emit("Lütfen IBAN, Hesap Sahibi Adı ve Kısa İsim alanlarını eksiksiz doldurun.")
+                _uiState.value = _uiState.value.copy(toastMessage = "Lütfen geçerli bir IBAN girin.")
             }
         }
     }

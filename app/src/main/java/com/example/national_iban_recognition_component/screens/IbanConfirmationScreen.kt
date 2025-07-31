@@ -1,28 +1,23 @@
 // IbanConfirmationScreen.kt
 package com.example.national_iban_recognition_component.screens
 
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
-import androidx.compose.material3.Button
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.example.national_iban_recognition_component.R
+import androidx.compose.ui.res.stringResource
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.national_iban_recognition_component.viewmodel.IbanConfirmationViewModel
-import com.example.national_iban_recognition_component.utils.IbanVisualTransformation // Eğer kullanılıyorsa
-import com.example.national_iban_recognition_component.model.IbanCategory // YENİ IMPORT
-import androidx.compose.ui.text.AnnotatedString
+import com.example.national_iban_recognition_component.components.CustomButton //Button Component
+import com.example.national_iban_recognition_component.components.CustomInfoBox //Info Box Component
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -31,18 +26,10 @@ fun IbanConfirmationScreen(
     ibanConfirmationViewModel: IbanConfirmationViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
 ) {
     val context = LocalContext.current
-
-    val countryCode by ibanConfirmationViewModel.countryCode.collectAsState()
-    val iban by ibanConfirmationViewModel.iban.collectAsState()
-
-    // YENİ EKLENEN STATE'LER
-    val ownerFullName by ibanConfirmationViewModel.ownerFullName.collectAsState()
-    val shortName by ibanConfirmationViewModel.shortName.collectAsState()
-    val category by ibanConfirmationViewModel.category.collectAsState() // Enum değeri olarak geliyor
-
+    val uiState by ibanConfirmationViewModel.uiState.collectAsStateWithLifecycle()
     Scaffold(
         topBar = {
-            TopAppBar(title = { Text("IBAN Bilgilerini Onayla") })
+            TopAppBar(title = { Text(stringResource(id = R.string.iban_confirm_title)) })
         }
     ) { paddingValues ->
         Column(
@@ -54,82 +41,26 @@ fun IbanConfirmationScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Text(
-                text = "Lütfen bilgileri kontrol edin:",
+                text = stringResource(id = R.string.iban_recognition_screen_info),
                 style = MaterialTheme.typography.headlineSmall,
                 modifier = Modifier.padding(bottom = 16.dp)
             )
-
-            // Ülke Kodu ve Bayrak
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                val flagResId = context.resources.getIdentifier(
-                    countryCode.lowercase(), "drawable", context.packageName
-                )
-                if (flagResId != 0) {
-                    Image(
-                        painter = painterResource(id = flagResId),
-                        contentDescription = "Country Flag",
-                        modifier = Modifier.size(32.dp)
-                    )
-                }
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    text = "Ülke Kodu: $countryCode",
-                    style = MaterialTheme.typography.bodyLarge
-                )
-            }
-            Spacer(Modifier.height(8.dp))
-
-            // IBAN
-            Text(
-                text = "IBAN: ${IbanVisualTransformation(countryCode).filter(AnnotatedString(iban)).text}", // Formatlı gösterim
-                style = MaterialTheme.typography.bodyLarge
+//Info Box Component
+            CustomInfoBox(
+                title = stringResource(id = R.string.iban_label),
+                value = AnnotatedString(uiState.iban).text.toString()
             )
-            Spacer(Modifier.height(8.dp))
 
-            // YENİ ALANLARIN GÖSTERİMİ:
+            Spacer(Modifier.weight(1f))
 
-            // Hesap Sahibi Adı
-            Text(
-                text = "Hesap Sahibi: $ownerFullName",
-                style = MaterialTheme.typography.bodyLarge
-            )
-            Spacer(Modifier.height(8.dp))
-
-            // Kısa İsim
-            Text(
-                text = "Kısa İsim: $shortName",
-                style = MaterialTheme.typography.bodyLarge
-            )
-            Spacer(Modifier.height(8.dp))
-
-            // Kategori (Opsiyonel olduğu için NONE değilse göster)
-            if (category != IbanCategory.NONE) {
-                Text(
-                    text = "Kategori: ${category.displayName}",
-                    style = MaterialTheme.typography.bodyLarge
-                )
-                Spacer(Modifier.height(8.dp))
-            }
-
-
-            Spacer(Modifier.weight(1f)) // Alanları yukarı itmek için
-
-            // Onayla Butonu
-            Button(
+//Custom Button Component
+            CustomButton(
+                text = stringResource(id = R.string.confirm_and_save_button),
                 onClick = {
                     ibanConfirmationViewModel.onConfirmClicked()
-                    // Buradan sonra nereye gideceğine karar verebilirsiniz,
-                    // örneğin ana ekrana geri dönebilir veya bir "başarılı" ekranına yönlenebilir.
-                    navController.popBackStack() // Ana ekrana geri dönme örneği
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp)
-            ) {
-                Text("Onayla ve Kaydet")
-            }
-
-            Spacer(Modifier.height(16.dp))
+                    navController.popBackStack()
+                }
+            )
         }
     }
 }
